@@ -1,7 +1,7 @@
 FROM docker.io/library/node:18
 
-# v0.7.0
-ARG TAG=26e4f4c
+# v0.8.0-ish
+ARG TAG=e31b311cfd42cae9f5d71306f14e947bd70ee38e
 
 RUN git clone https://github.com/eth-infinitism/bundler /src/bundler
 WORKDIR /src/bundler

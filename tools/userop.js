@@ -18,7 +18,7 @@ const options = program
   .option("--token <address>", "The token to transfer (empty for Ether)")
   .requiredOption("--to <address>", "The amount to transfer")
   .requiredOption("--amount <value>", "The recipient of the transfer")
-  .option("--rpc-url <url>", "The RPC URL, defaulting to public Otim instance")
+  .option("--rpc-url <url>", "The RPC URL")
   .option("--bundler-url <url>", "The ERC-4337 bundler URL")
   .parse()
   .opts();
@@ -47,7 +47,22 @@ async function main() {
     [
       `function ENTRY_POINT() view returns (address)`,
       `function getShadowling(uint256 commit) view returns (address)`,
-      `function execute(uint256 commit, address token, address to, uint256 amount)`,
+      `function getShadowlingDelegationSignature(uint256 commit) pure returns (uint8, bytes32, bytes32)`,
+      `function execute(address token, address to, uint256 amount)`,
+      `function verifyProof(uint256 commit, uint256 nullifier, bytes32 executionHash, ((uint256, uint256), (uint256[2], uint256[2]), (uint256, uint256)) proof) view returns (bool)`,
+      `function validateUserOp(
+        (
+          address sender,
+          uint256 nonce,
+          bytes initCode,
+          bytes callData,
+          bytes32 accountGasLimits,
+          uint256 preVerificationGas,
+          bytes32 gasFees,
+          bytes paymasterAndData,
+          bytes signature
+      ) userOp, bytes32 userOpHash, uint256 missingAccountFunds
+      ) returns (bytes32)`,
     ],
     provider,
   );
@@ -67,8 +82,22 @@ async function main() {
           bytes signature
         ) userOp
       ) view returns (bytes32)`,
-      `function getNonce(address sender, uint192 key) view returns (uint256 nonce)`,
-      `function balanceOf(address sender) view returns (uint256 amount)`,
+      `function handleOps(
+        (
+          address sender,
+          uint256 nonce,
+          bytes initCode,
+          bytes callData,
+          bytes32 accountGasLimits,
+          uint256 preVerificationGas,
+          bytes32 gasFees,
+          bytes paymasterAndData,
+          bytes signature
+      )[] userOps,
+      address bene
+      )`,
+      `function getNonce(address sender, uint192 key) view returns (uint256)`,
+      `function balanceOf(address sender) view returns (uint256)`,
     ],
     provider,
   );
@@ -88,15 +117,43 @@ async function main() {
   console.log({ entropy, commit });
 
   const shadowling = await shadowlings.getShadowling(commit);
+  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(commit);
 
+  // const signer = await provider.getSigner(0);
+  // const delegate = await signer.sendTransaction({
+  //   to: ethers.ZeroAddress,
+  //   authorizationList: [
+  //     {
+  //       chainId: 0,
+  //       address: await shadowlings.getAddress(),
+  //       nonce: 0,
+  //       signature: { yParity, r, s },
+  //     },
+  //   ],
+  // });
+  // console.log(await delegate.wait());
+  // const code = await provider.getCode(shadowling);
+  // const nonce = await provider.getTransactionCount(shadowling);
+  // console.log({ code, nonce });
+
+  const userOpInit = await provider.getTransactionCount(shadowling) === 0
+    ? {
+      factory: "0x7702",
+      eip7702Auth: {
+        chainId: 0,
+        address: await shadowlings.getAddress(),
+        nonce: 0,
+        yParity,
+        r,
+        s,
+      },
+    }
+    : {};
   const userOp = {
-    sender: await shadowlings.getAddress(),
-    nonce: await entryPoint.getNonce(
-      await shadowlings.getAddress(),
-      shadowling,
-    ),
+    ...userOpInit,
+    sender: shadowling,
+    nonce: await entryPoint.getNonce(shadowling, 0),
     callData: shadowlings.interface.encodeFunctionData("execute", [
-      commit,
       token,
       to,
       amount,
@@ -110,7 +167,7 @@ async function main() {
   const packedUserOp = {
     sender: userOp.sender,
     nonce: userOp.nonce,
-    initCode: "0x",
+    initCode: userOp.eip7702Auth ? userOp.eip7702Auth.address : "0x",
     callData: userOp.callData,
     accountGasLimits: packGas(userOp.verificationGasLimit, userOp.callGasLimit),
     preVerificationGas: userOp.preVerificationGas,
@@ -118,6 +175,7 @@ async function main() {
     paymasterAndData: "0x",
     signature: "0x",
   };
+  console.log(packedUserOp);
   const userOpHash = await entryPoint.getUserOpHash(packedUserOp);
 
   const executionHash = fieldify(userOpHash);
@@ -131,9 +189,7 @@ async function main() {
   } else {
     balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
   }
-  const prefund = `${
-    ethers.formatEther(await entryPoint.balanceOf(shadowlings))
-  } ETH`;
+  const prefund = `${ethers.formatEther(await entryPoint.balanceOf(shadowling))} ETH`;
   console.log({ shadowling, balance, prefund });
 
   const proof = await proove(
@@ -147,10 +203,20 @@ async function main() {
   const signature = ethers.AbiCoder.defaultAbiCoder().encode(
     [
       "uint256",
+      "uint256",
       "tuple(uint256[2], uint256[2][2], uint256[2])",
     ],
-    [nullifier, [proof.a, proof.b, proof.c]],
+    [commit, nullifier, [proof.a, proof.b, proof.c]],
   );
+
+  // const verified = await shadowlings.attach(shadowling).verifyProof(commit, nullifier, userOpHash, [proof.a, proof.b, proof.c]);
+  // console.log({ verified });
+  // const tx = await shadowlings.attach(shadowling).validateUserOp.populateTransaction({...packedUserOp, signature}, userOpHash, 0);
+  // console.log(tx);
+  // console.log(await provider.send("eth_call", [{...tx, from: await entryPoint.getAddress()}]));
+
+  // const exec = await entryPoint.connect(await provider.getSigner(0)).handleOps([{...packedUserOp, signature}], "0x71562b71999873db5b286df957af199ec94617f7");
+  // console.log(await exec.wait());
 
   console.log({ ...userOp, signature });
   await bundler.sendUserOperation(
@@ -258,29 +324,41 @@ class Bundler {
   jsonUserOp(userOp) {
     const result = {
       sender: ethers.getAddress(userOp.sender),
-      nonce: ethers.toBeHex(userOp.nonce),
+      nonce: ethers.toQuantity(userOp.nonce),
       callData: ethers.hexlify(userOp.callData),
-      callGasLimit: ethers.toBeHex(userOp.callGasLimit),
-      verificationGasLimit: ethers.toBeHex(userOp.verificationGasLimit),
-      preVerificationGas: ethers.toBeHex(userOp.preVerificationGas),
-      maxFeePerGas: ethers.toBeHex(userOp.maxFeePerGas),
-      maxPriorityFeePerGas: ethers.toBeHex(userOp.maxPriorityFeePerGas),
+      callGasLimit: ethers.toQuantity(userOp.callGasLimit),
+      verificationGasLimit: ethers.toQuantity(userOp.verificationGasLimit),
+      preVerificationGas: ethers.toQuantity(userOp.preVerificationGas),
+      maxFeePerGas: ethers.toQuantity(userOp.maxFeePerGas),
+      maxPriorityFeePerGas: ethers.toQuantity(userOp.maxPriorityFeePerGas),
       signature: ethers.hexlify(userOp.signature),
     };
-    if (userOp.factory) {
+    if (userOp.factory === "0x7702") {
+      result.factory = userOp.factory.padEnd(42, "0");
+      result.factoryData = ethers.hexlify(userOp.factoryData ?? "0x");
+      result.eip7702Auth = {
+        chainId: ethers.toQuantity(userOp.eip7702Auth.chainId),
+        address: ethers.getAddress(userOp.eip7702Auth.address),
+        nonce: ethers.toQuantity(userOp.eip7702Auth.nonce),
+        yParity: ethers.toQuantity(userOp.eip7702Auth.yParity),
+        r: ethers.toQuantity(userOp.eip7702Auth.r),
+        s: ethers.toQuantity(userOp.eip7702Auth.s),
+      };
+    } else if (userOp.factory) {
       result.factory = ethers.getAddress(userOp.factory);
       result.factoryData = ethers.hexlify(userOp.factoryData);
     }
     if (userOp.paymaster) {
       result.paymaster = ethers.getAddress(userOp.paymaster);
-      result.paymasterVerificationGasLimit = ethers.toBeHex(
+      result.paymasterVerificationGasLimit = ethers.toQuantity(
         userOp.paymasterVerificationGasLimit,
       );
-      result.paymasterPostOpGasLimit = ethers.toBeHex(
+      result.paymasterPostOpGasLimit = ethers.toQuantity(
         userOp.paymasterPostOpGasLimit,
       );
       result.paymasterData = ethers.hexlify(userOp.paymasterData);
     }
+    console.log(result);
     return result;
   }
 }

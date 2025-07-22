@@ -9,11 +9,12 @@ const options = program
   .requiredOption("--to <address>", "The amount to transfer")
   .requiredOption("--amount <value>", "The recipient of the transfer")
   .option("--demo", "Run in demo mode, funding with hardcoded contracts.")
+  .option("--rpc-url <url>", "The node RPC to connect to")
   .parse()
   .opts();
 
 async function main() {
-  const provider = new ethers.JsonRpcProvider("http://localhost:8545");
+  const provider = new ethers.JsonRpcProvider(options.rpcUrl ?? "http://localhost:8545");
   const signer = await provider.getSigner();
 
   const to = ethers.getAddress(options.to);
@@ -64,8 +65,8 @@ async function main() {
     signer,
   );
 
-  if (await entryPoint.balanceOf(shadowlings) < ethers.parseEther("1.0")) {
-    const transaction = await entryPoint.depositTo(shadowlings, {
+  if (await entryPoint.balanceOf(to) < ethers.parseEther("1.0")) {
+    const transaction = await entryPoint.depositTo(to, {
       value: ethers.parseEther("10.0"),
     });
     const receipt = await transaction.wait();
