@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-MNEMONIC="$(dirname $0)/data/bundler/mnemonic.txt"
+MNEMONIC="$(dirname $0)/bundler/data/mnemonic.txt"
 VALUE="test test test test test test test test test test test junk"
 
 if ! [[ -e "$MNEMONIC" ]]; then
