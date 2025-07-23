@@ -148,7 +148,7 @@ contract Shadowlings is IAccount, Verifier {
 
     function getShadowling(uint256 commit) public view returns (address authority) {
         bytes32 authMessage = keccak256(abi.encodePacked(bytes4(0x05d78094), _SELF, bytes1(0x80)));
-        (bytes32 r, bytes32 s, uint8 yParity) = getShadowlingDelegationSignature(commit);
+        (uint8 yParity, bytes32 r, bytes32 s) = getShadowlingDelegationSignature(commit);
         unchecked {
             authority = ecrecover(authMessage, yParity + 27, r, s);
         }
@@ -157,11 +157,11 @@ contract Shadowlings is IAccount, Verifier {
     function getShadowlingDelegationSignature(uint256 commit)
         public
         pure
-        returns (bytes32 r, bytes32 s, uint8 yParity)
+        returns (uint8 yParity, bytes32 r, bytes32 s)
     {
-        r = _R;
-        s = bytes32(commit >> 1);
         yParity = 0;
+        r = _R;
+        s = bytes32(commit);
     }
 
     function verifyProof(uint256 commit, uint256 nullifier, bytes32 executionHash, Proof memory proof)

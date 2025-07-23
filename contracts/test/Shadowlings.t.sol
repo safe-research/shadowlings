@@ -29,6 +29,16 @@ contract ShadowlingsTest is Test {
         assertNotEq(shadowling.code.length, 0);
     }
 
+    function test_AnyCommitIsValid() public view {
+        uint256 p = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+        for (uint256 i = 0; i < 100; i++) {
+            uint256 commit = uint256(keccak256(abi.encode(i))) % p;
+            address shadowling = shadowlings.getShadowling(commit);
+
+            assertNotEq(shadowling, address(0));
+        }
+    }
+
     function test_Execute() public {
         uint256 commit = uint256(uint248(uint256(keccak256("commit"))));
         address token = address(0);
@@ -193,7 +203,7 @@ contract ShadowlingsTest is Test {
     }
 
     function _delegate(uint256 commit) internal {
-        (bytes32 r, bytes32 s, uint8 yParity) = shadowlings.getShadowlingDelegationSignature(commit);
+        (uint8 yParity, bytes32 r, bytes32 s) = shadowlings.getShadowlingDelegationSignature(commit);
         VmSafe.SignedDelegation memory delegation =
             VmSafe.SignedDelegation({v: yParity, r: r, s: s, nonce: 0, implementation: address(shadowlings)});
 
