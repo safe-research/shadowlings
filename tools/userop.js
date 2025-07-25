@@ -91,6 +91,17 @@ async function main() {
   const shadowling = await shadowlings.getShadowling(commit);
   const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(commit);
 
+  let balance;
+  if (token === ethers.ZeroAddress) {
+    balance = `${
+      ethers.formatEther(await provider.getBalance(shadowling))
+    } ETH`;
+  } else {
+    balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
+  }
+  const prefund = `${ethers.formatEther(await entryPoint.balanceOf(shadowling))} ETH`;
+  console.log({ shadowling, balance, prefund });
+
   const userOpInit = await provider.getTransactionCount(shadowling) === 0
     ? {
       factory: "0x7702",
@@ -134,17 +145,6 @@ async function main() {
 
   const executionHash = fieldify(userOpHash);
   const nullifier = mimc(executionHash, saltHash);
-
-  let balance;
-  if (token === ethers.ZeroAddress) {
-    balance = `${
-      ethers.formatEther(await provider.getBalance(shadowling))
-    } ETH`;
-  } else {
-    balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
-  }
-  const prefund = `${ethers.formatEther(await entryPoint.balanceOf(shadowling))} ETH`;
-  console.log({ shadowling, balance, prefund });
 
   const proof = await proove(
     "main",
