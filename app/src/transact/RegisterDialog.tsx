@@ -15,10 +15,7 @@ import {
 import { encodeBase32 } from "geohashing";
 import React, { useCallback, useEffect, useState } from "react";
 import { ethers } from "ethers";
-import {
-  createRegisterData,
-  createWithdrawData,
-} from "../utils/proof";
+import { createRegisterData, createWithdrawData } from "../utils/proof";
 import { globalBundler } from "../utils/userops";
 import { queryRecoveryRegistrations } from "../utils/web3";
 
@@ -48,7 +45,10 @@ export default function RegisterDialog(
 
       console.log(registerData);
       console.log(
-        await globalBundler.sendUserOperation(registerData.userOp, registerData.entrypoint),
+        await globalBundler.sendUserOperation(
+          registerData.userOp,
+          registerData.entrypoint,
+        ),
       );
       handleClose();
     } catch (e) {

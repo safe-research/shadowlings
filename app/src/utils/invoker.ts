@@ -15,7 +15,9 @@ const SHADOWLING_ABI = [
 ];
 const SHADOWLING = new ethers.Interface(SHADOWLING_ABI);
 
-export const shadowling = (provider: ethers.Provider = globalProvier()): ethers.Contract =>
+export const shadowling = (
+  provider: ethers.Provider = globalProvier(),
+): ethers.Contract =>
   new ethers.Contract(
     SHADOWLING_ADDRESS,
     SHADOWLING,

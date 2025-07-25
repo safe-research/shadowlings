@@ -45,7 +45,10 @@ export default function WithdrawDialog(
 
       console.log(withdrawData);
       console.log(
-        await globalBundler.sendUserOperation(withdrawData.userOp, withdrawData.entrypoint),
+        await globalBundler.sendUserOperation(
+          withdrawData.userOp,
+          withdrawData.entrypoint,
+        ),
       );
       //setTarget("")
       //setAmount("")
