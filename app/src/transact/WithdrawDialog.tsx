@@ -5,7 +5,7 @@ import TextField from "@mui/material/TextField";
 import { Button, CircularProgress, DialogActions } from "@mui/material";
 import { useCallback, useState } from "react";
 import { ethers } from "ethers";
-import { buildSignature, createWithdrawData } from "../utils/proof";
+import { createWithdrawData } from "../utils/proof";
 import { globalBundler } from "../utils/userops";
 import { Token } from "../utils/tokens";
 
@@ -45,10 +45,7 @@ export default function WithdrawDialog(
 
       console.log(withdrawData);
       console.log(
-        await globalBundler.sendUserOperation({
-          ...withdrawData.userOp,
-          signature: buildSignature(withdrawData.nullifier, withdrawData.proof),
-        }, withdrawData.entrypoint),
+        await globalBundler.sendUserOperation(withdrawData.userOp, withdrawData.entrypoint),
       );
       //setTarget("")
       //setAmount("")

@@ -25,6 +25,7 @@ services:
       GETH_HTTP: "true"
       GETH_HTTP_ADDR: "0.0.0.0"
       GETH_HTTP_API: eth,web3,net,personal,debug
+      GETH_HTTP_CORSDOMAIN: "*"
       GETH_HTTP_VHOSTS: "*"
       GETH_RPC_ALLOW_UNPROTECTED_TXS: "true"
     ports:

@@ -7,12 +7,11 @@ import ShadowEntry from "./ShadowEntry";
 import RecoveryDialog from "../transact/RecoveryDialog";
 import Grid from "@mui/material/Unstable_Grid2/Grid2";
 
-const FIXED_SIGNATURE: SignatureLike = {
-  yParity: 1,
-  r: "0x74a52317b658076e35432533edc88c2f86823e2fcfd2b56f8fad46fb32d6a517",
-  s: "0x18811e130eeacc4232614ef16382b62d0d6e04eadf9fb575647e9cca12f0147f",
+const FIXED_SIGNATURE = {
+  yParity: 0 as const,
+  r: ethers.toBeHex(BigInt(ethers.id("Shadowlings.r")) - BigInt(1), 32),
 };
-const CHAIN_ID = 31337;
+const CHAIN_ID = 1337;
 
 export interface Shadow {
   address: string;
@@ -35,15 +34,10 @@ const loadPersistedShadows = (owner: string): Array<Shadow> => {
 export const recoverShadowlingAddress = (
   commit: string,
   invoker: string = SHADOWLING_ADDRESS,
-  chainid: number = CHAIN_ID,
 ): string => {
-  const authHash = ethers.solidityPackedKeccak256(
-    ["uint8", "uint256", "uint256", "uint256", "bytes32"],
-    ["0x04", chainid, 0, invoker, commit],
-  );
-  return ethers.recoverAddress(
-    authHash,
-    FIXED_SIGNATURE,
+  return ethers.verifyAuthorization(
+    { chainId: 0, address: invoker, nonce: 0 },
+    { ...FIXED_SIGNATURE, s: ethers.toBeHex(commit, 32) },
   );
 };
 

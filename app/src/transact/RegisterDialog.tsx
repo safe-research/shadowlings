@@ -16,7 +16,6 @@ import { encodeBase32 } from "geohashing";
 import React, { useCallback, useEffect, useState } from "react";
 import { ethers } from "ethers";
 import {
-  buildSignature,
   createRegisterData,
   createWithdrawData,
 } from "../utils/proof";
@@ -49,10 +48,7 @@ export default function RegisterDialog(
 
       console.log(registerData);
       console.log(
-        await globalBundler.sendUserOperation({
-          ...registerData.userOp,
-          signature: buildSignature(registerData.nullifier, registerData.proof),
-        }, registerData.entrypoint),
+        await globalBundler.sendUserOperation(registerData.userOp, registerData.entrypoint),
       );
       handleClose();
     } catch (e) {
