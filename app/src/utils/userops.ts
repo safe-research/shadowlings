@@ -8,12 +8,12 @@ export type UserOperation = {
   factory?: string;
   factoryData?: BytesLike;
   eip7702Auth?: {
-    chainId: BigNumberish,
-    address: string,
-    nonce: BigNumberish,
-    yParity: BigNumberish,
-    r: BytesLike,
-    s: BytesLike,
+    chainId: BigNumberish;
+    address: string;
+    nonce: BigNumberish;
+    yParity: BigNumberish;
+    r: BytesLike;
+    s: BytesLike;
   };
   callData: BytesLike;
   callGasLimit: BigNumberish;
