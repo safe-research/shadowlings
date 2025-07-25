@@ -14,17 +14,16 @@ export const globalProvier = (): ethers.Provider => {
 };
 
 const REGISTER_TOPIC =
-  "0xf59eb4b970a508b6ce525562982957de66286828bcbbcf770f802c8fad2d575b";
+  "0x6e2bac2cdd35232209f74220974a1637ad0407deaf178151454372ab3e8cfa3b";
 
 export const queryRecoveryRegistrations = async (
   shadow: string,
 ): Promise<string | undefined> => {
   const p = globalProvier();
   const logs = await p.getLogs({
-    address: SHADOWLING_ADDRESS,
+    address: ethers.getAddress(shadow),
     topics: [
       REGISTER_TOPIC,
-      ethers.zeroPadValue(shadow, 32),
     ],
     fromBlock: "earliest",
     toBlock: "latest",

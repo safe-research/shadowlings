@@ -5,11 +5,10 @@ import { calculateCommit } from "../utils/proof";
 test("Recover expected address", () => {
   expect(
     recoverShadowlingAddress(
-      ethers.id("commit"),
-      "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
-      31337,
+      "0x2171de7d497df3423fb6f2a86aaf6548c337100ff106a1803c30fb84796e63af",
+      "0xa82B48085abF81e6Cbe3Aa9D9e33B43b43977adD",
     ),
-  ).toBe("0xec31Bf31FaA8688FD52a85bbc2f7f4c69A876001");
+  ).toBe("0xDf8F36B9b828e69e160733485088c0C31DfB4132");
 });
 
 test("Calculate commit", async () => {

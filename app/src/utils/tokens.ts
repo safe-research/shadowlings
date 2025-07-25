@@ -11,7 +11,7 @@ export interface Token {
 }
 
 export const KNOWN_TOKEN: Token[] = [{
-  address: deployments[31337].ShadowToken,
+  address: deployments[1337].ShadowToken,
   decimals: 18,
   name: "Shadow Token",
   symbol: "SHD",
