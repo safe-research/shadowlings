@@ -12,13 +12,13 @@ contract Deploy is Script {
         vm.startBroadcast();
 
         bytes32 salt = bytes32(uint256(0x5afe));
-        address entryPoint = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+        address entryPoint = 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108;
 
         Shadowlings shadowlings = new Shadowlings{salt: salt}(entryPoint);
-        console.log(address(shadowlings));
+        console.log("Shadowlings:", address(shadowlings));
 
         ShadowToken token = new ShadowToken{salt: salt}();
-        console.log(address(token));
+        console.log("ShadowToken:", address(token));
 
         vm.stopBroadcast();
     }

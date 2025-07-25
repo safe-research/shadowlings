@@ -18,7 +18,7 @@ const options = program
   .option("--token <address>", "The token to transfer (empty for Ether)")
   .requiredOption("--to <address>", "The amount to transfer")
   .requiredOption("--amount <value>", "The recipient of the transfer")
-  .option("--rpc-url <url>", "The RPC URL, defaulting to public Otim instance")
+  .option("--rpc-url <url>", "The RPC URL")
   .option("--bundler-url <url>", "The ERC-4337 bundler URL")
   .parse()
   .opts();
@@ -47,7 +47,8 @@ async function main() {
     [
       `function ENTRY_POINT() view returns (address)`,
       `function getShadowling(uint256 commit) view returns (address)`,
-      `function execute(uint256 commit, address token, address to, uint256 amount)`,
+      `function getShadowlingDelegationSignature(uint256 commit) pure returns (uint8, bytes32, bytes32)`,
+      `function execute(address token, address to, uint256 amount)`,
     ],
     provider,
   );
@@ -67,8 +68,8 @@ async function main() {
           bytes signature
         ) userOp
       ) view returns (bytes32)`,
-      `function getNonce(address sender, uint192 key) view returns (uint256 nonce)`,
-      `function balanceOf(address sender) view returns (uint256 amount)`,
+      `function getNonce(address sender, uint192 key) view returns (uint256)`,
+      `function balanceOf(address sender) view returns (uint256)`,
     ],
     provider,
   );
@@ -88,15 +89,41 @@ async function main() {
   console.log({ entropy, commit });
 
   const shadowling = await shadowlings.getShadowling(commit);
+  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(
+    commit,
+  );
 
+  let balance;
+  if (token === ethers.ZeroAddress) {
+    balance = `${
+      ethers.formatEther(await provider.getBalance(shadowling))
+    } ETH`;
+  } else {
+    balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
+  }
+  const prefund = `${
+    ethers.formatEther(await entryPoint.balanceOf(shadowling))
+  } ETH`;
+  console.log({ shadowling, balance, prefund });
+
+  const userOpInit = await provider.getTransactionCount(shadowling) === 0
+    ? {
+      factory: "0x7702",
+      eip7702Auth: {
+        chainId: 0,
+        address: await shadowlings.getAddress(),
+        nonce: 0,
+        yParity,
+        r,
+        s,
+      },
+    }
+    : {};
   const userOp = {
-    sender: await shadowlings.getAddress(),
-    nonce: await entryPoint.getNonce(
-      await shadowlings.getAddress(),
-      shadowling,
-    ),
+    ...userOpInit,
+    sender: shadowling,
+    nonce: await entryPoint.getNonce(shadowling, 0),
     callData: shadowlings.interface.encodeFunctionData("execute", [
-      commit,
       token,
       to,
       amount,
@@ -110,7 +137,7 @@ async function main() {
   const packedUserOp = {
     sender: userOp.sender,
     nonce: userOp.nonce,
-    initCode: "0x",
+    initCode: userOp.eip7702Auth ? userOp.eip7702Auth.address : "0x",
     callData: userOp.callData,
     accountGasLimits: packGas(userOp.verificationGasLimit, userOp.callGasLimit),
     preVerificationGas: userOp.preVerificationGas,
@@ -123,19 +150,6 @@ async function main() {
   const executionHash = fieldify(userOpHash);
   const nullifier = mimc(executionHash, saltHash);
 
-  let balance;
-  if (token === ethers.ZeroAddress) {
-    balance = `${
-      ethers.formatEther(await provider.getBalance(shadowling))
-    } ETH`;
-  } else {
-    balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
-  }
-  const prefund = `${
-    ethers.formatEther(await entryPoint.balanceOf(shadowlings))
-  } ETH`;
-  console.log({ shadowling, balance, prefund });
-
   const proof = await proove(
     "main",
     commit,
@@ -147,9 +161,10 @@ async function main() {
   const signature = ethers.AbiCoder.defaultAbiCoder().encode(
     [
       "uint256",
+      "uint256",
       "tuple(uint256[2], uint256[2][2], uint256[2])",
     ],
-    [nullifier, [proof.a, proof.b, proof.c]],
+    [commit, nullifier, [proof.a, proof.b, proof.c]],
   );
 
   console.log({ ...userOp, signature });
@@ -258,25 +273,36 @@ class Bundler {
   jsonUserOp(userOp) {
     const result = {
       sender: ethers.getAddress(userOp.sender),
-      nonce: ethers.toBeHex(userOp.nonce),
+      nonce: ethers.toQuantity(userOp.nonce),
       callData: ethers.hexlify(userOp.callData),
-      callGasLimit: ethers.toBeHex(userOp.callGasLimit),
-      verificationGasLimit: ethers.toBeHex(userOp.verificationGasLimit),
-      preVerificationGas: ethers.toBeHex(userOp.preVerificationGas),
-      maxFeePerGas: ethers.toBeHex(userOp.maxFeePerGas),
-      maxPriorityFeePerGas: ethers.toBeHex(userOp.maxPriorityFeePerGas),
+      callGasLimit: ethers.toQuantity(userOp.callGasLimit),
+      verificationGasLimit: ethers.toQuantity(userOp.verificationGasLimit),
+      preVerificationGas: ethers.toQuantity(userOp.preVerificationGas),
+      maxFeePerGas: ethers.toQuantity(userOp.maxFeePerGas),
+      maxPriorityFeePerGas: ethers.toQuantity(userOp.maxPriorityFeePerGas),
       signature: ethers.hexlify(userOp.signature),
     };
-    if (userOp.factory) {
+    if (userOp.factory === "0x7702") {
+      result.factory = userOp.factory.padEnd(42, "0");
+      result.factoryData = ethers.hexlify(userOp.factoryData ?? "0x");
+      result.eip7702Auth = {
+        chainId: ethers.toQuantity(userOp.eip7702Auth.chainId),
+        address: ethers.getAddress(userOp.eip7702Auth.address),
+        nonce: ethers.toQuantity(userOp.eip7702Auth.nonce),
+        yParity: ethers.toQuantity(userOp.eip7702Auth.yParity),
+        r: ethers.toQuantity(userOp.eip7702Auth.r),
+        s: ethers.toQuantity(userOp.eip7702Auth.s),
+      };
+    } else if (userOp.factory) {
       result.factory = ethers.getAddress(userOp.factory);
       result.factoryData = ethers.hexlify(userOp.factoryData);
     }
     if (userOp.paymaster) {
       result.paymaster = ethers.getAddress(userOp.paymaster);
-      result.paymasterVerificationGasLimit = ethers.toBeHex(
+      result.paymasterVerificationGasLimit = ethers.toQuantity(
         userOp.paymasterVerificationGasLimit,
       );
-      result.paymasterPostOpGasLimit = ethers.toBeHex(
+      result.paymasterPostOpGasLimit = ethers.toQuantity(
         userOp.paymasterPostOpGasLimit,
       );
       result.paymasterData = ethers.hexlify(userOp.paymasterData);
