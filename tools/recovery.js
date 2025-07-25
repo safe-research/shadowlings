@@ -96,7 +96,7 @@ async function register(options) {
   const prefund = `${
     ethers.formatEther(await entryPoint.balanceOf(shadowling))
   } ETH`;
-  console.log({ shadowling, prefund });
+  console.log({ shadowling, saltHash, prefund });
 
   const userOpInit = await provider.getTransactionCount(shadowling) === 0
     ? {

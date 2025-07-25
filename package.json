@@ -11,7 +11,6 @@
     "contracts:test": "make -C contracts test",
     "docker:down": "docker compose -f docker/docker-compose.yaml down",
     "docker:up": "docker compose -f docker/docker-compose.yaml up",
-    "tools:info": "node ./tools/info.js",
     "tools:fund": "node ./tools/fund.js",
     "tools:recover": "node ./tools/recover.js",
     "tools:recovery": "node ./tools/recovery.js",
