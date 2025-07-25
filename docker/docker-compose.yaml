@@ -15,14 +15,15 @@ services:
     volumes:
       - ..:/src
     ports:
-      - 3074:3074
+      - 7702:7702
 
   node:
-    image: ghcr.io/paradigmxyz/foundry-alphanet:latest
+    image: ghcr.io/foundry-rs/foundry:stable
     restart: always
     command:
-      - --foundry-command
       - anvil
+    environment:
+      ANVIL_IP_ADDR: '0.0.0.0'
     ports:
       - 8545:8545
 
@@ -41,13 +42,12 @@ services:
     ports:
       - 3000:3000
     volumes:
-      - ./data/bundler:/data
+      - ./bundler/data:/data
 
   deploy:
-    image: ghcr.io/paradigmxyz/foundry-alphanet:latest
+    image: ghcr.io/foundry-rs/foundry:stable
     restart: on-failure:10
     command:
-      - --foundry-command
       - 'forge script script/Deploy.s.sol:Deploy --rpc-url http://node:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast -vvv'
     working_dir: /src
     volumes:

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {Test, console} from "forge-std/Test.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 
 import {ShadowToken} from "../src/ShadowToken.sol";
 import {Shadowlings, Verifier, RecoveryVerifier, RegisterVerifier} from "../src/Shadowlings.sol";
@@ -17,23 +18,44 @@ contract ShadowlingsTest is Test {
 
     function setUp() public {}
 
+    function test_Delegation() public {
+        uint256 commit = uint256(uint248(uint256(keccak256("commit"))));
+        address shadowling = shadowlings.getShadowling(commit);
+
+        assertEq(shadowling.code.length, 0);
+
+        _delegate(commit);
+
+        assertNotEq(shadowling.code.length, 0);
+    }
+
+    function test_AnyCommitIsValid() public view {
+        uint256 p = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+        for (uint256 i = 0; i < 100; i++) {
+            uint256 commit = uint256(keccak256(abi.encode(i))) % p;
+            address shadowling = shadowlings.getShadowling(commit);
+
+            assertNotEq(shadowling, address(0));
+        }
+    }
+
     function test_Execute() public {
         uint256 commit = uint256(uint248(uint256(keccak256("commit"))));
         address token = address(0);
         address to = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
         uint256 amount = 1 ether;
 
-        address shadowling = shadowlings.getShadowling(commit);
-        vm.deal(shadowling, amount);
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
+        vm.deal(address(shadowling), amount);
 
         assertEq(to.balance, 0);
-        assertEq(shadowling.balance, 1 ether);
+        assertEq(address(shadowling).balance, 1 ether);
 
         vm.prank(entryPoint);
-        shadowlings.execute(commit, token, to, amount);
+        shadowling.execute(token, to, amount);
 
         assertEq(to.balance, 1 ether);
-        assertEq(shadowling.balance, 0);
+        assertEq(address(shadowling).balance, 0);
     }
 
     function test_ExecuteToken() public {
@@ -42,17 +64,17 @@ contract ShadowlingsTest is Test {
         address to = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
         uint256 amount = 1 ether;
 
-        address shadowling = shadowlings.getShadowling(commit);
-        shadowToken.mint(shadowling, amount);
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
+        shadowToken.mint(address(shadowling), amount);
 
         assertEq(shadowToken.balanceOf(to), 0);
-        assertEq(shadowToken.balanceOf(shadowling), 1 ether);
+        assertEq(shadowToken.balanceOf(address(shadowling)), 1 ether);
 
         vm.prank(entryPoint);
-        shadowlings.execute(commit, token, to, amount);
+        shadowling.execute(token, to, amount);
 
         assertEq(shadowToken.balanceOf(to), 1 ether);
-        assertEq(shadowToken.balanceOf(shadowling), 0);
+        assertEq(shadowToken.balanceOf(address(shadowling)), 0);
     }
 
     function test_UserOperation() public {
@@ -62,11 +84,14 @@ contract ShadowlingsTest is Test {
         address to = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
         uint256 amount = 1 ether;
 
-        bytes memory callData = abi.encodeCall(shadowlings.execute, (commit, token, to, amount));
-        bytes memory signature = abi.encode(nullifier, proof);
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
+        vm.deal(address(shadowling), 2 ether);
+
+        bytes memory callData = abi.encodeCall(shadowling.execute, (token, to, amount));
+        bytes memory signature = abi.encode(commit, nullifier, proof);
 
         PackedUserOperation memory userOp = PackedUserOperation({
-            sender: address(shadowlings),
+            sender: address(shadowling),
             nonce: 0,
             initCode: "",
             callData: callData,
@@ -78,18 +103,17 @@ contract ShadowlingsTest is Test {
         });
         bytes32 userOpHash = executionHash;
 
-        address shadowling = shadowlings.getShadowling(commit);
-        vm.deal(shadowling, amount);
-
+        assertEq(entryPoint.balance, 0);
         assertEq(to.balance, 0);
-        assertEq(shadowling.balance, 1 ether);
+        assertEq(address(shadowling).balance, 2 ether);
 
         vm.startPrank(entryPoint);
-        require(shadowlings.validateUserOp(userOp, userOpHash, 0) == 0);
-        shadowlings.execute(commit, token, to, amount);
+        require(shadowling.validateUserOp(userOp, userOpHash, 0.1 ether) == 0);
+        shadowling.execute(token, to, amount);
 
+        assertEq(entryPoint.balance, 0.1 ether);
         assertEq(to.balance, 1 ether);
-        assertEq(shadowling.balance, 0);
+        assertEq(address(shadowling).balance, 0.9 ether);
     }
 
     function test_RegisterSaltNonce() public {
@@ -101,11 +125,13 @@ contract ShadowlingsTest is Test {
             RegisterVerifier.Proof memory proof
         ) = _sampleRegisterProof();
 
-        bytes memory callData = abi.encodeCall(shadowlings.register, (commit, saltHash));
-        bytes memory signature = abi.encode(nullifier, proof);
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
+
+        bytes memory callData = abi.encodeCall(shadowlings.register, (saltHash));
+        bytes memory signature = abi.encode(commit, nullifier, proof);
 
         PackedUserOperation memory userOp = PackedUserOperation({
-            sender: address(shadowlings),
+            sender: address(shadowling),
             nonce: 0,
             initCode: "",
             callData: callData,
@@ -118,27 +144,29 @@ contract ShadowlingsTest is Test {
         bytes32 userOpHash = executionHash;
 
         vm.startPrank(entryPoint);
-        require(shadowlings.validateUserOp(userOp, userOpHash, 0) == 0);
-        shadowlings.register(commit, saltHash);
+        require(shadowling.validateUserOp(userOp, userOpHash, 0) == 0);
+        shadowling.register(saltHash);
     }
 
-    function test_VerifyProof() public view {
+    function test_VerifyProof() public {
         (uint256 commit, uint256 nullifier, bytes32 executionHash, Verifier.Proof memory proof) = _sampleProof();
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
 
-        bool success = shadowlings.verifyProof(commit, nullifier, executionHash, proof);
+        bool success = shadowling.verifyProof(commit, nullifier, executionHash, proof);
 
         assertTrue(success);
     }
 
-    function test_VerifyRecoveryProof() public view {
+    function test_VerifyRecoveryProof() public {
         (uint256 commit, address owner, uint256 saltHash, RecoveryVerifier.Proof memory proof) = _sampleRecoveryProof();
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
 
-        bool success = shadowlings.verifyRecoveryProof(commit, owner, saltHash, proof);
+        bool success = shadowling.verifyRecoveryProof(commit, owner, saltHash, proof);
 
         assertTrue(success);
     }
 
-    function test_VerifyRegisterProof() public view {
+    function test_VerifyRegisterProof() public {
         (
             uint256 commit,
             uint256 nullifier,
@@ -146,8 +174,9 @@ contract ShadowlingsTest is Test {
             uint256 saltHash,
             RegisterVerifier.Proof memory proof
         ) = _sampleRegisterProof();
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
 
-        bool success = shadowlings.verifyRegisterProof(commit, nullifier, executionHash, saltHash, proof);
+        bool success = shadowling.verifyRegisterProof(commit, nullifier, executionHash, saltHash, proof);
 
         assertTrue(success);
     }
@@ -159,18 +188,34 @@ contract ShadowlingsTest is Test {
         address to = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
         uint256 amount = 1 ether;
 
-        address shadowling = shadowlings.getShadowling(commit);
-        vm.deal(shadowling, amount);
+        Shadowlings shadowling = _getAndDelegateShadowling(commit);
+        vm.deal(address(shadowling), amount);
 
         assertEq(to.balance, 0);
-        assertEq(shadowling.balance, 1 ether);
+        assertEq(address(shadowling).balance, 1 ether);
 
         vm.prank(owner);
-        bool success = shadowlings.executeWithRecovery(commit, saltHash, token, to, amount, proof);
+        bool success = shadowling.executeWithRecovery(commit, saltHash, token, to, amount, proof);
 
         assertEq(to.balance, 1 ether);
-        assertEq(shadowling.balance, 0);
+        assertEq(address(shadowling).balance, 0);
         assertTrue(success);
+    }
+
+    function _delegate(uint256 commit) internal {
+        (uint8 yParity, bytes32 r, bytes32 s) = shadowlings.getShadowlingDelegationSignature(commit);
+        VmSafe.SignedDelegation memory delegation =
+            VmSafe.SignedDelegation({v: yParity, r: r, s: s, nonce: 0, implementation: address(shadowlings)});
+
+        uint256 chainId = block.chainid;
+        vm.chainId(0);
+        vm.attachDelegation(delegation);
+        vm.chainId(chainId);
+    }
+
+    function _getAndDelegateShadowling(uint256 commit) internal returns (Shadowlings shadowling) {
+        _delegate(commit);
+        shadowling = Shadowlings(payable(shadowlings.getShadowling(commit)));
     }
 
     function _sampleProof()

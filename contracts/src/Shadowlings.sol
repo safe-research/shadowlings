@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.30;
 
 import {SIG_VALIDATION_SUCCESS, SIG_VALIDATION_FAILED} from "account-abstraction/core/Helpers.sol";
 import {IAccount, PackedUserOperation} from "account-abstraction/interfaces/IAccount.sol";
@@ -10,67 +10,71 @@ import {Verifier as RecoveryVerifier} from "./verifiers/recovery/Verifier.sol";
 import {Verifier as RegisterVerifier} from "./verifiers/register/Verifier.sol";
 
 contract Shadowlings is IAccount, Verifier {
+    bytes32 private constant _R = bytes32(uint256(keccak256("Shadowlings.r")) - 1);
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(uint256 chainId,address verifyingContract)");
     bytes32 public constant TRANSFER_TYPEHASH = keccak256("Transfer(address token,address to,uint256 amount)");
 
-    bytes public constant SIGNATURE =
-        hex"0174a52317b658076e35432533edc88c2f86823e2fcfd2b56f8fad46fb32d6a51718811e130eeacc4232614ef16382b62d0d6e04eadf9fb575647e9cca12f0147f";
-
+    address private immutable _SELF;
     address public immutable ENTRY_POINT;
     RecoveryVerifier public immutable RECOVERY;
     RegisterVerifier public immutable REGISTER;
 
     mapping(uint256 => bool) public nullified;
 
+    error NotDelegated();
     error UnsupportedEntryPoint();
     error UnsupportedCall();
-    error OnlyWithoutPrefund();
     error Nullified();
+    error Unauthorized();
     error InvalidProof();
+    error TransferFailed();
 
-    event RecoverySaltHash(address indexed shadowling, uint256 saltHash);
+    event RecoverySaltHash(uint256 saltHash);
 
     constructor(address entryPoint) {
+        _SELF = address(this);
         ENTRY_POINT = entryPoint;
         RECOVERY = new RecoveryVerifier();
         REGISTER = new RegisterVerifier();
     }
 
-    modifier onlyEntryPoint() {
-        if (msg.sender != ENTRY_POINT) {
-            revert UnsupportedEntryPoint();
-        }
+    modifier onlyDelegated() {
+        require(address(this) != _SELF, NotDelegated());
         _;
     }
 
-    modifier onlyWithoutPrefund(uint256 missingAccountFunds) {
-        if (missingAccountFunds != 0) {
-            revert OnlyWithoutPrefund();
-        }
+    modifier onlyEntryPoint() {
+        require(msg.sender == ENTRY_POINT, UnsupportedEntryPoint());
         _;
     }
+
+    receive() external payable onlyDelegated {}
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
-        view
         onlyEntryPoint
-        onlyWithoutPrefund(missingAccountFunds)
         returns (uint256 validationData)
     {
         bool success;
 
         bytes4 selector = bytes4(userOp.callData[:4]);
         if (selector == this.execute.selector) {
-            (uint256 commit) = abi.decode(userOp.callData[4:], (uint256));
-            (uint256 nullifier, Proof memory proof) = abi.decode(userOp.signature, (uint256, Proof));
+            (uint256 commit, uint256 nullifier, Proof memory proof) =
+                abi.decode(userOp.signature, (uint256, uint256, Proof));
             success = verifyProof(commit, nullifier, userOpHash, proof);
         } else if (selector == this.register.selector) {
-            (uint256 commit, uint256 saltHash) = abi.decode(userOp.callData[4:], (uint256, uint256));
-            (uint256 nullifier, RegisterVerifier.Proof memory proof) =
-                abi.decode(userOp.signature, (uint256, RegisterVerifier.Proof));
+            (uint256 saltHash) = abi.decode(userOp.callData[4:], (uint256));
+            (uint256 commit, uint256 nullifier, RegisterVerifier.Proof memory proof) =
+                abi.decode(userOp.signature, (uint256, uint256, RegisterVerifier.Proof));
             success = verifyRegisterProof(commit, nullifier, userOpHash, saltHash, proof);
         } else {
             revert UnsupportedCall();
+        }
+
+        if (missingAccountFunds != 0) {
+            assembly ("memory-safe") {
+                pop(call(gas(), caller(), missingAccountFunds, 0, 0, 0, 0))
+            }
         }
 
         if (success) {
@@ -80,16 +84,12 @@ contract Shadowlings is IAccount, Verifier {
         }
     }
 
-    function execute(uint256 commit, address token, address to, uint256 amount)
-        external
-        onlyEntryPoint
-        returns (bool success)
-    {
-        success = _execute(commit, token, to, amount);
+    function execute(address token, address to, uint256 amount) external onlyEntryPoint returns (bool success) {
+        success = _execute(token, to, amount);
     }
 
-    function register(uint256 commit, uint256 saltHash) external onlyEntryPoint returns (bool success) {
-        emit RecoverySaltHash(getShadowling(commit), saltHash);
+    function register(uint256 saltHash) external onlyEntryPoint returns (bool success) {
+        emit RecoverySaltHash(saltHash);
         success = true;
     }
 
@@ -112,7 +112,7 @@ contract Shadowlings is IAccount, Verifier {
             revert InvalidProof();
         }
 
-        success = _execute(commit, token, to, amount);
+        success = _execute(token, to, amount);
     }
 
     function executeWithRecovery(
@@ -127,7 +127,7 @@ contract Shadowlings is IAccount, Verifier {
             revert InvalidProof();
         }
 
-        success = _execute(commit, token, to, amount);
+        success = _execute(token, to, amount);
     }
 
     function domainSeparator() public view returns (bytes32 hash) {
@@ -147,21 +147,21 @@ contract Shadowlings is IAccount, Verifier {
     }
 
     function getShadowling(uint256 commit) public view returns (address authority) {
-        bytes memory signature = SIGNATURE;
-
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        assembly ("memory-safe") {
-            v := and(add(mload(add(signature, 0x01)), 27), 0xff)
-            r := mload(add(signature, 0x21))
-            s := mload(add(signature, 0x41))
+        bytes32 authMessage = keccak256(abi.encodePacked(bytes4(0x05d78094), _SELF, bytes1(0x80)));
+        (uint8 yParity, bytes32 r, bytes32 s) = getShadowlingDelegationSignature(commit);
+        unchecked {
+            authority = ecrecover(authMessage, yParity + 27, r, s);
         }
+    }
 
-        bytes32 authMessage =
-            keccak256(abi.encodePacked(uint8(0x04), block.chainid, uint256(0), uint256(uint160(address(this))), commit));
-
-        authority = ecrecover(authMessage, v, r, s);
+    function getShadowlingDelegationSignature(uint256 commit)
+        public
+        pure
+        returns (uint8 yParity, bytes32 r, bytes32 s)
+    {
+        yParity = 0;
+        r = _R;
+        s = bytes32(commit);
     }
 
     function verifyProof(uint256 commit, uint256 nullifier, bytes32 executionHash, Proof memory proof)
@@ -169,12 +169,7 @@ contract Shadowlings is IAccount, Verifier {
         view
         returns (bool success)
     {
-        uint256[] memory input = new uint256[](3);
-        input[0] = commit;
-        input[1] = nullifier;
-        input[2] = _fieldify(executionHash);
-
-        success = verify(input, proof) == 0;
+        success = _authorize(commit) && verifyTx(proof, [commit, nullifier, _fieldify(executionHash)]);
     }
 
     function verifyRecoveryProof(uint256 commit, address owner, uint256 saltHash, RecoveryVerifier.Proof memory proof)
@@ -182,8 +177,7 @@ contract Shadowlings is IAccount, Verifier {
         view
         returns (bool success)
     {
-        uint256[3] memory input = [commit, uint256(uint160(owner)), saltHash];
-        success = RECOVERY.verifyTx(proof, input);
+        success = _authorize(commit) && RECOVERY.verifyTx(proof, [commit, uint256(uint160(owner)), saltHash]);
     }
 
     function verifyRegisterProof(
@@ -193,34 +187,37 @@ contract Shadowlings is IAccount, Verifier {
         uint256 saltHash,
         RegisterVerifier.Proof memory proof
     ) public view returns (bool success) {
-        uint256[4] memory input = [commit, nullifier, _fieldify(executionHash), saltHash];
-        success = REGISTER.verifyTx(proof, input);
+        success =
+            _authorize(commit) && REGISTER.verifyTx(proof, [commit, nullifier, _fieldify(executionHash), saltHash]);
     }
 
-    function _execute(uint256 commit, address token, address to, uint256 amount) internal returns (bool success) {
-        address authority = getShadowling(commit);
-        bytes memory authData = abi.encodePacked(SIGNATURE, commit);
-        assembly ("memory-safe") {
-            pop(auth(authority, add(authData, 0x20), mload(authData)))
-        }
+    function _authorize(uint256 commit) internal view returns (bool success) {
+        success = address(this) == getShadowling(commit);
+    }
 
+    function _execute(address token, address to, uint256 amount) internal returns (bool success) {
         if (token == address(0)) {
             assembly ("memory-safe") {
-                success := authcall(gas(), to, amount, 0, 0, 0, 0)
+                success := call(gas(), to, amount, 0, 0, 0, 0)
+                if iszero(success) {
+                    let ptr := mload(0x40)
+                    returndatacopy(ptr, 0, returndatasize())
+                    revert(ptr, returndatasize())
+                }
             }
         } else {
             bytes memory callData = abi.encodeWithSignature("transfer(address,uint256)", to, amount);
             assembly ("memory-safe") {
-                success := authcall(gas(), token, 0, add(callData, 0x20), mload(callData), 0, 0)
+                if iszero(call(gas(), token, 0, add(callData, 0x20), mload(callData), 0, 32)) {
+                    let ptr := mload(0x40)
+                    returndatacopy(ptr, 0, returndatasize())
+                    revert(ptr, returndatasize())
+                }
+                switch returndatasize()
+                case 0 { success := iszero(iszero(extcodesize(token))) }
+                default { success := and(gt(returndatasize(), 31), eq(mload(0), 1)) }
             }
-        }
-
-        if (!success) {
-            assembly ("memory-safe") {
-                let ptr := mload(0x40)
-                returndatacopy(ptr, 0, returndatasize())
-                revert(ptr, returndatasize())
-            }
+            require(success, TransferFailed());
         }
     }
 
