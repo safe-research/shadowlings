@@ -49,20 +49,6 @@ async function main() {
       `function getShadowling(uint256 commit) view returns (address)`,
       `function getShadowlingDelegationSignature(uint256 commit) pure returns (uint8, bytes32, bytes32)`,
       `function execute(address token, address to, uint256 amount)`,
-      `function verifyProof(uint256 commit, uint256 nullifier, bytes32 executionHash, ((uint256, uint256), (uint256[2], uint256[2]), (uint256, uint256)) proof) view returns (bool)`,
-      `function validateUserOp(
-        (
-          address sender,
-          uint256 nonce,
-          bytes initCode,
-          bytes callData,
-          bytes32 accountGasLimits,
-          uint256 preVerificationGas,
-          bytes32 gasFees,
-          bytes paymasterAndData,
-          bytes signature
-      ) userOp, bytes32 userOpHash, uint256 missingAccountFunds
-      ) returns (bytes32)`,
     ],
     provider,
   );
@@ -82,20 +68,6 @@ async function main() {
           bytes signature
         ) userOp
       ) view returns (bytes32)`,
-      `function handleOps(
-        (
-          address sender,
-          uint256 nonce,
-          bytes initCode,
-          bytes callData,
-          bytes32 accountGasLimits,
-          uint256 preVerificationGas,
-          bytes32 gasFees,
-          bytes paymasterAndData,
-          bytes signature
-      )[] userOps,
-      address bene
-      )`,
       `function getNonce(address sender, uint192 key) view returns (uint256)`,
       `function balanceOf(address sender) view returns (uint256)`,
     ],
@@ -118,23 +90,6 @@ async function main() {
 
   const shadowling = await shadowlings.getShadowling(commit);
   const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(commit);
-
-  // const signer = await provider.getSigner(0);
-  // const delegate = await signer.sendTransaction({
-  //   to: ethers.ZeroAddress,
-  //   authorizationList: [
-  //     {
-  //       chainId: 0,
-  //       address: await shadowlings.getAddress(),
-  //       nonce: 0,
-  //       signature: { yParity, r, s },
-  //     },
-  //   ],
-  // });
-  // console.log(await delegate.wait());
-  // const code = await provider.getCode(shadowling);
-  // const nonce = await provider.getTransactionCount(shadowling);
-  // console.log({ code, nonce });
 
   const userOpInit = await provider.getTransactionCount(shadowling) === 0
     ? {
@@ -175,7 +130,6 @@ async function main() {
     paymasterAndData: "0x",
     signature: "0x",
   };
-  console.log(packedUserOp);
   const userOpHash = await entryPoint.getUserOpHash(packedUserOp);
 
   const executionHash = fieldify(userOpHash);
@@ -208,15 +162,6 @@ async function main() {
     ],
     [commit, nullifier, [proof.a, proof.b, proof.c]],
   );
-
-  // const verified = await shadowlings.attach(shadowling).verifyProof(commit, nullifier, userOpHash, [proof.a, proof.b, proof.c]);
-  // console.log({ verified });
-  // const tx = await shadowlings.attach(shadowling).validateUserOp.populateTransaction({...packedUserOp, signature}, userOpHash, 0);
-  // console.log(tx);
-  // console.log(await provider.send("eth_call", [{...tx, from: await entryPoint.getAddress()}]));
-
-  // const exec = await entryPoint.connect(await provider.getSigner(0)).handleOps([{...packedUserOp, signature}], "0x71562b71999873db5b286df957af199ec94617f7");
-  // console.log(await exec.wait());
 
   console.log({ ...userOp, signature });
   await bundler.sendUserOperation(
@@ -358,7 +303,6 @@ class Bundler {
       );
       result.paymasterData = ethers.hexlify(userOp.paymasterData);
     }
-    console.log(result);
     return result;
   }
 }

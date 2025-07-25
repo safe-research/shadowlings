@@ -27,12 +27,6 @@ services:
       GETH_HTTP_API: eth,web3,net,personal,debug
       GETH_HTTP_VHOSTS: '*'
       GETH_RPC_ALLOW_UNPROTECTED_TXS: 'true'
-    # image: ghcr.io/foundry-rs/foundry:v1.3.0-rc1
-    # restart: always
-    # command:
-    #   - 'anvil --hardfork prague'
-    # environment:
-    #   ANVIL_IP_ADDR: '0.0.0.0'
     ports:
       - 8545:8545
 
