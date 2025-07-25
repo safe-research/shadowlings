@@ -14,7 +14,9 @@ const options = program
   .opts();
 
 async function main() {
-  const provider = new ethers.JsonRpcProvider(options.rpcUrl ?? "http://localhost:8545");
+  const provider = new ethers.JsonRpcProvider(
+    options.rpcUrl ?? "http://localhost:8545",
+  );
   const signer = await provider.getSigner();
 
   const to = ethers.getAddress(options.to);

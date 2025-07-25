@@ -89,7 +89,9 @@ async function main() {
   console.log({ entropy, commit });
 
   const shadowling = await shadowlings.getShadowling(commit);
-  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(commit);
+  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(
+    commit,
+  );
 
   let balance;
   if (token === ethers.ZeroAddress) {
@@ -99,7 +101,9 @@ async function main() {
   } else {
     balance = `${ethers.formatEther(await erc20.balanceOf(shadowling))} ETH`;
   }
-  const prefund = `${ethers.formatEther(await entryPoint.balanceOf(shadowling))} ETH`;
+  const prefund = `${
+    ethers.formatEther(await entryPoint.balanceOf(shadowling))
+  } ETH`;
   console.log({ shadowling, balance, prefund });
 
   const userOpInit = await provider.getTransactionCount(shadowling) === 0

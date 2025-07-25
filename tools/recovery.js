@@ -89,9 +89,13 @@ async function register(options) {
   console.log({ entropy, commit });
 
   const shadowling = await shadowlings.getShadowling(commit);
-  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(commit);
+  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(
+    commit,
+  );
 
-  const prefund = `${ethers.formatEther(await entryPoint.balanceOf(shadowling))} ETH`;
+  const prefund = `${
+    ethers.formatEther(await entryPoint.balanceOf(shadowling))
+  } ETH`;
   console.log({ shadowling, prefund });
 
   const userOpInit = await provider.getTransactionCount(shadowling) === 0
