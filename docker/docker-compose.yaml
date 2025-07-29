@@ -1,5 +1,5 @@
 name: shadowlings
-version: '3.8'
+version: "3.8"
 
 services:
   app:
@@ -18,12 +18,15 @@ services:
       - 7702:7702
 
   node:
-    image: ghcr.io/foundry-rs/foundry:stable
+    image: ethereum/client-go:stable
     restart: always
-    command:
-      - anvil
     environment:
-      ANVIL_IP_ADDR: '0.0.0.0'
+      GETH_DEV: "true"
+      GETH_HTTP: "true"
+      GETH_HTTP_ADDR: "0.0.0.0"
+      GETH_HTTP_API: eth,web3,net,personal,debug
+      GETH_HTTP_VHOSTS: "*"
+      GETH_RPC_ALLOW_UNPROTECTED_TXS: "true"
     ports:
       - 8545:8545
 
@@ -36,19 +39,16 @@ services:
       - --auto
       - --unsafe
       - --network=http://node:8545
-      - --mnemonic=/data/mnemonic.txt
     environment:
-      DEBUG: 'aa.exec,aa.exec.cron,aa.events,aa.mempool'
+      DEBUG: "aa.exec,aa.exec.cron,aa.events,aa.mempool"
     ports:
       - 3000:3000
-    volumes:
-      - ./bundler/data:/data
 
   deploy:
-    image: ghcr.io/foundry-rs/foundry:stable
+    image: ghcr.io/foundry-rs/foundry:v1.3.0-rc1
     restart: on-failure:10
     command:
-      - 'forge script script/Deploy.s.sol:Deploy --rpc-url http://node:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast -vvv'
+      - "forge script script/Deploy.s.sol:Deploy --rpc-url http://node:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast -vvv"
     working_dir: /src
     volumes:
       - ../contracts:/src

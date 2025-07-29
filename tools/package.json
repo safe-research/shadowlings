@@ -5,8 +5,8 @@
   "type": "module",
   "dependencies": {
     "circomlibjs": "^0.1.7",
-    "commander": "^12.1.0",
-    "ethers": "^6.12.1",
+    "commander": "^14.0.0",
+    "ethers": "^6.15.0",
     "zokrates-js": "^1.1.9"
   }
 }

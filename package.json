@@ -11,12 +11,11 @@
     "contracts:test": "make -C contracts test",
     "docker:down": "docker compose -f docker/docker-compose.yaml down",
     "docker:up": "docker compose -f docker/docker-compose.yaml up",
-    "docker:prepare": "bash ./docker/prepare.sh",
     "tools:fund": "node ./tools/fund.js",
     "tools:recover": "node ./tools/recover.js",
     "tools:recovery": "node ./tools/recovery.js",
     "tools:userop": "node ./tools/userop.js",
     "start": "pnpm run docker:up",
-    "prepare": "pnpm run circuits:compile && pnpm run docker:prepare"
+    "prepare": "pnpm run circuits:compile"
   }
 }

@@ -54,7 +54,8 @@ async function register(options) {
     [
       `function ENTRY_POINT() view returns (address)`,
       `function getShadowling(uint256 commit) view returns (address)`,
-      `function register(uint256 commit, uint256 saltHash)`,
+      `function getShadowlingDelegationSignature(uint256 commit) pure returns (uint8, bytes32, bytes32)`,
+      `function register(uint256 saltHash)`,
     ],
     provider,
   );
@@ -88,18 +89,33 @@ async function register(options) {
   console.log({ entropy, commit });
 
   const shadowling = await shadowlings.getShadowling(commit);
-  console.log({ shadowling });
+  const [yParity, r, s] = await shadowlings.getShadowlingDelegationSignature(
+    commit,
+  );
 
+  const prefund = `${
+    ethers.formatEther(await entryPoint.balanceOf(shadowling))
+  } ETH`;
+  console.log({ shadowling, saltHash, prefund });
+
+  const userOpInit = await provider.getTransactionCount(shadowling) === 0
+    ? {
+      factory: "0x7702",
+      eip7702Auth: {
+        chainId: 0,
+        address: await shadowlings.getAddress(),
+        nonce: 0,
+        yParity,
+        r,
+        s,
+      },
+    }
+    : {};
   const userOp = {
-    sender: await shadowlings.getAddress(),
-    nonce: await entryPoint.getNonce(
-      await shadowlings.getAddress(),
-      shadowling,
-    ),
-    callData: shadowlings.interface.encodeFunctionData("register", [
-      commit,
-      saltHash,
-    ]),
+    ...userOpInit,
+    sender: shadowling,
+    nonce: await entryPoint.getNonce(shadowling, 0),
+    callData: shadowlings.interface.encodeFunctionData("register", [saltHash]),
     verificationGasLimit: 500000,
     callGasLimit: 100000,
     preVerificationGas: 100000,
@@ -109,7 +125,7 @@ async function register(options) {
   const packedUserOp = {
     sender: userOp.sender,
     nonce: userOp.nonce,
-    initCode: "0x",
+    initCode: userOp.eip7702Auth ? userOp.eip7702Auth.address : "0x",
     callData: userOp.callData,
     accountGasLimits: packGas(userOp.verificationGasLimit, userOp.callGasLimit),
     preVerificationGas: userOp.preVerificationGas,
@@ -134,9 +150,10 @@ async function register(options) {
   const signature = ethers.AbiCoder.defaultAbiCoder().encode(
     [
       "uint256",
+      "uint256",
       "tuple(uint256[2], uint256[2][2], uint256[2])",
     ],
-    [nullifier, [proof.a, proof.b, proof.c]],
+    [commit, nullifier, [proof.a, proof.b, proof.c]],
   );
 
   console.log({ ...userOp, signature });
@@ -216,7 +233,7 @@ async function recover(options) {
 
   const transactionData = {
     from: owner,
-    to: await shadowlings.getAddress(),
+    to: shadowling,
     data: shadowlings.interface.encodeFunctionData("executeWithRecovery", [
       commit,
       saltHash,
@@ -327,25 +344,36 @@ class Bundler {
   jsonUserOp(userOp) {
     const result = {
       sender: ethers.getAddress(userOp.sender),
-      nonce: ethers.toBeHex(userOp.nonce),
+      nonce: ethers.toQuantity(userOp.nonce),
       callData: ethers.hexlify(userOp.callData),
-      callGasLimit: ethers.toBeHex(userOp.callGasLimit),
-      verificationGasLimit: ethers.toBeHex(userOp.verificationGasLimit),
-      preVerificationGas: ethers.toBeHex(userOp.preVerificationGas),
-      maxFeePerGas: ethers.toBeHex(userOp.maxFeePerGas),
-      maxPriorityFeePerGas: ethers.toBeHex(userOp.maxPriorityFeePerGas),
+      callGasLimit: ethers.toQuantity(userOp.callGasLimit),
+      verificationGasLimit: ethers.toQuantity(userOp.verificationGasLimit),
+      preVerificationGas: ethers.toQuantity(userOp.preVerificationGas),
+      maxFeePerGas: ethers.toQuantity(userOp.maxFeePerGas),
+      maxPriorityFeePerGas: ethers.toQuantity(userOp.maxPriorityFeePerGas),
       signature: ethers.hexlify(userOp.signature),
     };
-    if (userOp.factory) {
+    if (userOp.factory === "0x7702") {
+      result.factory = userOp.factory.padEnd(42, "0");
+      result.factoryData = ethers.hexlify(userOp.factoryData ?? "0x");
+      result.eip7702Auth = {
+        chainId: ethers.toQuantity(userOp.eip7702Auth.chainId),
+        address: ethers.getAddress(userOp.eip7702Auth.address),
+        nonce: ethers.toQuantity(userOp.eip7702Auth.nonce),
+        yParity: ethers.toQuantity(userOp.eip7702Auth.yParity),
+        r: ethers.toQuantity(userOp.eip7702Auth.r),
+        s: ethers.toQuantity(userOp.eip7702Auth.s),
+      };
+    } else if (userOp.factory) {
       result.factory = ethers.getAddress(userOp.factory);
       result.factoryData = ethers.hexlify(userOp.factoryData);
     }
     if (userOp.paymaster) {
       result.paymaster = ethers.getAddress(userOp.paymaster);
-      result.paymasterVerificationGasLimit = ethers.toBeHex(
+      result.paymasterVerificationGasLimit = ethers.toQuantity(
         userOp.paymasterVerificationGasLimit,
       );
-      result.paymasterPostOpGasLimit = ethers.toBeHex(
+      result.paymasterPostOpGasLimit = ethers.toQuantity(
         userOp.paymasterPostOpGasLimit,
       );
       result.paymasterData = ethers.hexlify(userOp.paymasterData);
@@ -359,7 +387,7 @@ function packGas(hi, lo) {
 }
 
 function fieldify(value) {
-  return ethers.toBeHex(
+  return ethers.toQuantity(
     BigInt(value) &
       0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn,
   );
