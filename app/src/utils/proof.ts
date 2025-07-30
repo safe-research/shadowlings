@@ -11,7 +11,7 @@ import {
   buildUserOps,
   calculateUserOpHash,
   entrypoint,
-  UserOperation,
+  SignedUserOperation,
 } from "./userops";
 import { encodeExecute, encodeRegister } from "./invoker";
 
@@ -97,9 +97,10 @@ export const createWithdrawData = async (
   amount: bigint,
 ): Promise<{
   entrypoint: string;
+  commit: string;
   nullifier: string;
   proof: Proof;
-  userOp: UserOperation;
+  userOp: SignedUserOperation;
 }> => {
   const zok = await initialize();
   const provingKey = loadMainProvingKey();
@@ -111,9 +112,9 @@ export const createWithdrawData = async (
   );
   console.log({ entropy });
   console.log({ commit });
-  const calldata = encodeExecute(commit, token, target, amount);
+  const calldata = encodeExecute(token, target, amount);
   const ep = await entrypoint();
-  const userOp = await buildUserOps(shadow, calldata);
+  const userOp = await buildUserOps(shadow, commit, calldata);
   const userOpHash = await calculateUserOpHash(userOp);
   const executionHash = fieldify(userOpHash);
   const nullifier = await hash(executionHash, saltHash);
@@ -125,9 +126,13 @@ export const createWithdrawData = async (
   console.log(proof);
   return {
     entrypoint: await ep.getAddress(),
+    commit,
     nullifier,
     proof,
-    userOp,
+    userOp: {
+      ...userOp,
+      signature: buildSignature(commit, nullifier, proof),
+    },
   };
 };
 
@@ -153,9 +158,10 @@ export const createRegisterData = async (
   salt: string,
 ): Promise<{
   entrypoint: string;
+  commit: string;
   nullifier: string;
   proof: Proof;
-  userOp: UserOperation;
+  userOp: SignedUserOperation;
 }> => {
   const zok = await initialize();
   const provingKey = loadRegisterProvingKey();
@@ -167,10 +173,10 @@ export const createRegisterData = async (
   );
   console.log({ entropy });
   console.log({ commit });
-  const calldata = encodeRegister(commit, saltHash);
+  const calldata = encodeRegister(saltHash);
   // TODO refactor
   const ep = await entrypoint();
-  const userOp = await buildUserOps(shadow, calldata);
+  const userOp = await buildUserOps(shadow, commit, calldata);
   const userOpHash = await calculateUserOpHash(userOp);
   const executionHash = fieldify(userOpHash);
   const nullifier = await hash(executionHash, saltHash);
@@ -184,9 +190,13 @@ export const createRegisterData = async (
   console.log(proof);
   return {
     entrypoint: await ep.getAddress(),
+    commit,
     nullifier,
     proof,
-    userOp,
+    userOp: {
+      ...userOp,
+      signature: buildSignature(commit, nullifier, proof),
+    },
   };
 };
 
@@ -232,10 +242,10 @@ export const createRecoveryData = async (
   };
 };
 
-export const buildSignature = (nullifier: string, proof: Proof) => {
+const buildSignature = (commit: string, nullifier: string, proof: Proof) => {
   const p: any = proof.proof;
   return ethers.AbiCoder.defaultAbiCoder().encode(
-    ["uint256", "tuple(uint256[2], uint256[2][2], uint256[2])"],
-    [nullifier, [p.a, p.b, p.c]],
+    ["uint256", "uint256", "tuple(uint256[2], uint256[2][2], uint256[2])"],
+    [commit, nullifier, [p.a, p.b, p.c]],
   );
 };
