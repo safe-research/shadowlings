@@ -117,7 +117,7 @@ export const createWithdrawData = async (
   const userOp = await buildUserOps(shadow, commit, calldata);
   const userOpHash = await calculateUserOpHash(userOp);
   const executionHash = fieldify(userOpHash);
-  const nullifier = await hash(executionHash, saltHash);
+  const nullifier = await hash(executionHash, salt);
   const { witness } = zok.computeWitness(
     artifact,
     [commit, nullifier, executionHash, ownerHash, salt].map(toFieldElement),
@@ -179,7 +179,7 @@ export const createRegisterData = async (
   const userOp = await buildUserOps(shadow, commit, calldata);
   const userOpHash = await calculateUserOpHash(userOp);
   const executionHash = fieldify(userOpHash);
-  const nullifier = await hash(executionHash, saltHash);
+  const nullifier = await hash(executionHash, salt);
   const { witness } = zok.computeWitness(
     artifact,
     [commit, nullifier, executionHash, saltHash, ownerHash, salt].map(

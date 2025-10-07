@@ -136,7 +136,7 @@ async function register(options) {
   const userOpHash = await entryPoint.getUserOpHash(packedUserOp);
 
   const executionHash = fieldify(userOpHash);
-  const nullifier = mimc(executionHash, saltHash);
+  const nullifier = mimc(executionHash, salt);
 
   const proof = await proove(
     "register",
