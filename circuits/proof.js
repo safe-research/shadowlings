@@ -61,7 +61,7 @@ async function main() {
   const ownerHash = mimc(owner, entropy);
   const saltHash = mimc(salt, pepper);
   const commitHash = mimc(ownerHash, saltHash);
-  const nullifierHash = mimc(executionHash, saltHash);
+  const nullifierHash = mimc(executionHash, salt);
 
   console.log("### MAIN ###");
   proove(zokrates, circuits.main, [

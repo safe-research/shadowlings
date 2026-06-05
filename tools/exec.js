@@ -2,7 +2,7 @@ import { program } from "commander";
 import { ethers } from "ethers";
 
 const options = program
-  .name("shadowlings-recover")
+  .name("shadowlings-exec")
   .requiredOption("--to <to>", "The contract to call")
   .requiredOption("--data <data>", "The data to send")
   .parse()

@@ -18,7 +18,7 @@ def main(
     field commit_hash = mimc(owner_hash, salt_hash);
     assert(commit_hash == expected_commit_hash);
 
-    field nullifier_hash = mimc(execution_hash, salt_hash);
+    field nullifier_hash = mimc(execution_hash, salt);
     assert(nullifier_hash == expected_nullifier_hash);
 
     return;

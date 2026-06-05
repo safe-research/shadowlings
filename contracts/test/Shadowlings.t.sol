@@ -224,26 +224,26 @@ contract ShadowlingsTest is Test {
         returns (uint256 commit, uint256 nullifier, bytes32 executionHash, Verifier.Proof memory proof)
     {
         commit = 0x153c333c4856f04f11c983484a8fbcd2705b4460498f55b4771cd09af3c306ab;
-        nullifier = 0x05476bcdcaba1d11916a4f3618d499f9b6c53506cb825926f25ea37e0627cc0d;
+        nullifier = 0x093c6d9b3a569295b89e33e6e4f49b44050063ffa2ea0039e52b0bfc6b3b7035;
         executionHash = 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee;
 
         proof.a = Pairing.G1Point(
-            0x156519e7174f3919963da97190bef3af71ab77c206741e93fc60ea1c401dbb3e,
-            0x23d332a33ca334ba07ff9d8b1155f8862d2879022027971af44780a89d3b6bce
+            0x0af58fe57774255accf23f1b83432e280f0a9ac03fc5fa84fb74bf61866be20c,
+            0x232d5781beddc97999033d8a1b34ff8b1718214c9c51ace149d88d9e24cc9532
         );
         proof.b = Pairing.G2Point(
             [
-                0x22f9a4e7dba2f6a77492f0388123d0a2c8054cae2115fc80db37f9c4209f3793,
-                0x1df55020ef2c3abbc16338c6a400b1a892754f0d43e2a3677798a74ed61a73c1
+                0x0aa351a0aab4d8e1f2044852420c01d8190b071119110fb1a53df0a8bfe9743e,
+                0x0a28f7bafcfca1e9255707b6fa7af4c5dee7860741a69aac4d28192c8ddc5a64
             ],
             [
-                0x2e715839bc1231c349ab7d2c77b9db4ba17046b10423fb9c4ad496f0de2a44d3,
-                0x1a3cf8fc4b89f194107ea4e3e5de84a2867a7f9aff28fc48c3fd12dbcbb323f8
+                0x0ce7435890ad5fb22f96db6b0e5a3369e5ee094991dacb11ca2ceb83b11018d5,
+                0x072adcf8cd9695e35d6a5aedaffd5bb6303660382df67231c51dc6d1a45cd809
             ]
         );
         proof.c = Pairing.G1Point(
-            0x145d4046b3af25fed85ee13bc51738e7cf7667468171315b45ff6f678a5d8a36,
-            0x18eb28b2492cbe68eb115c9a501de2e987cb37e0477cae455702fe0b40f8651e
+            0x07b7e38dc1b4078e4989ec933e129d8921638da7df456f08d8ddeee57a23e07c,
+            0x26603ac0986237dbb0e4015697e40d40909385cfe3972231126acec582b6a338
         );
     }
 
@@ -288,27 +288,27 @@ contract ShadowlingsTest is Test {
         )
     {
         commit = 0x153c333c4856f04f11c983484a8fbcd2705b4460498f55b4771cd09af3c306ab;
-        nullifier = 0x05476bcdcaba1d11916a4f3618d499f9b6c53506cb825926f25ea37e0627cc0d;
+        nullifier = 0x093c6d9b3a569295b89e33e6e4f49b44050063ffa2ea0039e52b0bfc6b3b7035;
         executionHash = 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee;
         saltHash = 0x0167d79660812409fa2f73c39d3b34cd1dd77b81f2e5b065c2411a7535f2f740;
 
         proof.a = RegisterPairing.G1Point(
-            0x1320e03c3783d157a30bbec4f9db2a4761bc4dc3b88ba781e8c679f2b24d20fc,
-            0x3034ce8546ce619ff015130eb67a08a59a81dc40431c6964fd620b9dbba96428
+            0x2f2440abb2c207c7e1d610b53947402760a12984f58a30400db9cb846bf9bb27,
+            0x1de0a3ce3cb9a458998b3e16ad10e1264fb4f67dd600b29ccf5bab15dc909ddb
         );
         proof.b = RegisterPairing.G2Point(
             [
-                0x11f26057be5b4f6377b2a87b25841139c2c9dc038c06cad65050d3368de375cf,
-                0x2aeb06192d5372cee77b0d85a78c92d8c1b4cb043c9d89f284b2902a56a7d2ee
+                0x1a7ab4931c488380eb20cd71096dcea5a665907b6c79b1ea32b34b7b5dd985a0,
+                0x26a2e15a697ef433bd3ab1749d8ffdba495dbda5279b69acb5e4bb671cf67067
             ],
             [
-                0x25e3b6d4e55be31dba513f26462078428c67c73041e3cb696c17b5b407e7fe2d,
-                0x138357274e7c0caf8d9314ec6d0b963c80be63a10784efae8722565c9f395fbf
+                0x268e12cb2b8eb36cc39e597c6182183357d21c9d5862adc98ff7a57e554cbef7,
+                0x02e3a4580638ef6b84717fe6191f2df611877f97cf5fde9079d061382e74944c
             ]
         );
         proof.c = RegisterPairing.G1Point(
-            0x0f5fc53e0fe1e111549d7d333772909805fdadae5b109a6e96e50d1dd6655385,
-            0x1c36a3924a9aa3a809ec8f0c484cb6d608d7513759855616a3a43c76ccbf475c
+            0x1d697af3ca9cebe2f9428ce1201701cd6188a8bbabf0e39681228c781168c1ef,
+            0x2430ef330bc1cb01b16456fedabbc64f97469703e85dc76752e944da5e2d6205
         );
     }
 }
